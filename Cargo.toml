@@ -1,0 +1,20 @@
+[package]
+name = "shawty_bot"
+version = "0.1.0"
+authors = ["Samuel Wehunt <sam.wehunt@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serenity = { "version" = "0.10.2"}
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+reqwest = { "version" = "*", "features" = ["blocking"] }
+serde = { "version" = "*", "features" = ["derive"]}
+serde_json = "*"
+image = "*"
+rand = "0.7.3"
+clokwerk = "0.3.4"
+chrono = "0.4.19"
+date_time_parser = "0.1.0"
+regex = "1.4.3"
