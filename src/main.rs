@@ -74,7 +74,7 @@ async fn main() {
         Ok(tok) => tok,
         Err(_) => {
             let mut content = String::new();
-            File::open("assets/key").expect("could not find env DISCORD_TOKEN or file containing bot key")
+            File::open("./assets/key").expect("could not find env DISCORD_TOKEN or file containing bot key")
                 .read_to_string(&mut content).expect("could not read contents of assets/key");
             content
         },
@@ -95,7 +95,7 @@ async fn main() {
         data.insert::<BotOwner>(277158017869414400);
         data.insert::<StatusTimer>(Instant::now());
         //attempt to load the reminder list from assets/reminder_list.json
-        let mut reminder_list: Vec<Reminder> = match std::fs::read_to_string("assets/reminder_list.json") {
+        let mut reminder_list: Vec<Reminder> = match std::fs::read_to_string("./assets/reminder_list.json") {
             Ok(string) => match serde_json::from_str(&string) {
                 Ok(data) => data,
                 Err(e) => {
@@ -434,7 +434,7 @@ async fn update_status_time(ctx: &Context) {
 }
 
 async fn update_activity(ctx: &Context) {
-    match std::fs::read_to_string("assets/activities.json") {
+    match std::fs::read_to_string("./assets/activities.json") {
         Ok(string) => match serde_json::from_str::<Vec<String>>(&string) {
             Ok(data) => {
                 let choice = data.choose(&mut rand::thread_rng());
@@ -474,12 +474,12 @@ fn mock_string(to_mock: &str) -> String {
 }
 
 fn overlay_bonk(avatar: image::DynamicImage, meta: &ImageData) -> Result<image::DynamicImage, String> {
-    let bonk_image = match image::open(format!("assets/{}", meta.name)) {
+    let bonk_image = match image::open(format!("./assets/{}", meta.name)) {
         Ok(image) => image,
         Err(e) => return Err(format!("could not open bonk image: {}", e)),
     };
     let resized_avatar = imageops::resize(&avatar, meta.bonkee_width, meta.bonkee_height, imageops::FilterType::Nearest);
-    let bonk_label = match image::open("assets/bonklabel.png") {
+    let bonk_label = match image::open("./assets/bonklabel.png") {
         Ok(image) => image,
         Err(e) => return Err(format!("could not open bonk image: {}", e)),
     };
@@ -495,7 +495,7 @@ fn overlay_bonk(avatar: image::DynamicImage, meta: &ImageData) -> Result<image::
 }
 
 fn choose_bonk() -> Result<ImageData, String> {
-    let meta_data: Vec<ImageData> = match std::fs::read_to_string("assets/bonk_locations.json") {
+    let meta_data: Vec<ImageData> = match std::fs::read_to_string("./assets/bonk_locations.json") {
         Ok(string) => match serde_json::from_str(&string) {
             Ok(data) => data,
             Err(e) => return Err(format!("could not parse JSON: {}", e)),
@@ -512,6 +512,6 @@ fn choose_bonk() -> Result<ImageData, String> {
 //serialize the reminder list
 fn save_reminder_list(reminder_list: &Vec<Reminder>) -> Result<(), Box<dyn Error>> {
     let json_content = serde_json::to_string(&reminder_list)?;
-    std::fs::write("assets/reminder_list.json", json_content)?;
+    std::fs::write("./assets/reminder_list.json", json_content)?;
     Ok(())
 }
