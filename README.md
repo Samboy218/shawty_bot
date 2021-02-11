@@ -28,6 +28,6 @@ the bot will attempt to find dates/times in the following formats (and will prio
 - Relative offset: '3 days' '5 hours' '47 minutes' '5 weeks' '2 years' '2348103 milliseconds' 'next week' 'next month'
 - 'fuzzy' time resolution uses [this library](https://github.com/isaacrlee/event-parser) to attempt to catch any other weird formats humans may use
 
-##Misc behavior
+## Misc behavior
 - shawty_bot will periodically (about every hour) change it's activity to one of the ones defined in assets/activities.json
 - shawty_bot will examine all message id's in channels it can see, if it encounters a message id with repeating final digits, it will add an approprite reaction based on how many digits repeat
