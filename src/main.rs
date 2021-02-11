@@ -5,13 +5,12 @@ use std::io::prelude::*;
 use std::time::{Duration, Instant};
 use std::error::Error;
 use rand::Rng;
-use serenity::framework::standard::CommandError;
 use image::imageops;
 use serde::{Deserialize, Serialize};
 use rand::seq::SliceRandom;
 use serenity:: {
     async_trait,
-    model::{channel::Message, channel::ReactionType, gateway::Ready, gateway::Activity, gateway::ActivityType},
+    model::{channel::Message, channel::ReactionType, gateway::Ready, gateway::Activity},
     prelude::*,
     framework::StandardFramework,
     framework::standard::{
@@ -60,6 +59,7 @@ struct ImageData {
     bonkee_top: bool
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct Reminder {
     date_time: chrono::NaiveDateTime,
     message: serenity::model::channel::Message,
@@ -94,7 +94,27 @@ async fn main() {
         data.insert::<MockTracker>(HashMap::default());
         data.insert::<BotOwner>(277158017869414400);
         data.insert::<StatusTimer>(Instant::now());
-        data.insert::<ReminderList>(Vec::new());
+        //attempt to load the reminder list from assets/reminder_list.json
+        let mut reminder_list: Vec<Reminder> = match std::fs::read_to_string("assets/reminder_list.json") {
+            Ok(string) => match serde_json::from_str(&string) {
+                Ok(data) => data,
+                Err(e) => {
+                    println!("could not parse JSON: {}", e);
+                    Vec::new()
+                },
+            },
+            Err(e) => {
+                println!("could not read 'reminder_list.json': {}", e);
+                Vec::new()
+            },
+        };
+        let now = chrono::Local::now().naive_local();
+        let num_read = reminder_list.len();
+        reminder_list.retain(|reminder| reminder.date_time > now);
+        if num_read > reminder_list.len() {
+            println!("purged {} expired timers that should have been fired", num_read-reminder_list.len());
+        }
+        data.insert::<ReminderList>(reminder_list);
     }
 
     if let Err(why) = client.start().await {
@@ -117,8 +137,8 @@ async fn mock(ctx: &Context, msg: &Message) -> CommandResult {
         }
     };
     let bot_owner = {
-        let data = ctx.data.read();
-        *data.await.get::<BotOwner>().expect("could not get BotOwner!")
+        let data = ctx.data.read().await;
+        *data.get::<BotOwner>().expect("could not get BotOwner!")
     };
     for mentioned in &msg.mentions {
         let id = *mentioned.id.as_u64();
@@ -181,7 +201,7 @@ async fn bonk(ctx: &Context, msg: &Message) -> CommandResult {
             let _ = msg.channel_id.send_message(&ctx.http, |m| {
                 m.add_file("bonked.png");
                 m
-            });
+            }).await;
         },
         Err(e) => {
             println!("could not save image: {}", e);
@@ -203,8 +223,10 @@ async fn help(ctx: &Context, msg: &Message) -> CommandResult {
 async fn remind(ctx: &Context, msg: &Message) -> CommandResult {
     let parsed_time = scheduler::find_time(&msg.content);
     if let Some(parsed_time) = parsed_time {
-        if let Ok(message) = msg.channel_id.say(&ctx.http, format!("<@{}> I will remind you about this message on `{}` at `{}`\nother users can react with a 🕑 to also be notified", msg.author.id, parsed_time.date(), parsed_time.time())).await {
-            message.react(&ctx.http, '🕑').await;
+        if let Ok(message) = msg.reply(&ctx.http, format!("<@{}> I will remind you about this message on `{}` at `{}`\nother users can react with a 🕑 to also be notified", msg.author.id, parsed_time.date(), parsed_time.time())).await {
+            if let Err(why) = message.react(&ctx.http, '🕑').await {
+                println!("Error! could not react to message {:?}: {}", msg, why)
+            }
             let new_reminder = Reminder {
                 date_time: parsed_time,
                 message: msg.clone(),
@@ -213,6 +235,9 @@ async fn remind(ctx: &Context, msg: &Message) -> CommandResult {
             let mut data = ctx.data.write().await;
             let reminder_list = data.get_mut::<ReminderList>().expect("could not get mutable ReminderList!");
             reminder_list.push(new_reminder);
+            if let Err(why) = save_reminder_list(&reminder_list) {
+                println!("could not save reminder list: {}", why);
+            }
         }
     }
     println!("{:?}", parsed_time);
@@ -325,10 +350,17 @@ impl EventHandler for Handler {
                     for reminder in expired_reminders {
                         let mut other_users = reminder.verification_message.reaction_users(&ctx, '🕑', None, None).await.unwrap_or(Vec::new());
                         other_users.retain(|user| *user.id.as_u64() != me);
-                        let at_list = other_users.iter().map(|user| format!("<@{}>", user.id.as_u64())).collect::<Vec<String>>().join("");
-                        reminder.message.reply_ping(&ctx, format!("Reminding you of this message\n{}", at_list)).await;
+                        let at_list = other_users.iter().map(|user| format!("{}", user.mention())).collect::<Vec<String>>().join(" ");
+                        let msg_content = format!("Reminding you of this message\n{}", at_list);
+                        println!("{}", msg_content);
+                        if let Err(why) = reminder.message.reply_ping(&ctx, msg_content).await {
+                            println!("Error! could not post reply message: {}", why);
+                        }
                     }
                     reminder_list.retain(|reminder| reminder.date_time > now);
+                    if let Err(why) = save_reminder_list(reminder_list) {
+                        println!("could not save reminder list: {}", why);
+                    }
                 }
             }
         });
@@ -475,4 +507,11 @@ fn choose_bonk() -> Result<ImageData, String> {
         None => return Err(format!("meta data has no elements to choose from")),
     };
     Ok(meta.clone())
+}
+
+//serialize the reminder list
+fn save_reminder_list(reminder_list: &Vec<Reminder>) -> Result<(), Box<dyn Error>> {
+    let json_content = serde_json::to_string(&reminder_list)?;
+    std::fs::write("assets/reminder_list.json", json_content)?;
+    Ok(())
 }

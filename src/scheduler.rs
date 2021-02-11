@@ -1,6 +1,6 @@
 use date_time_parser::DateParser;
 use date_time_parser::TimeParser;
-use chrono::{NaiveDate, NaiveDateTime, DateTime, Local, TimeZone, Datelike};
+use chrono::{NaiveDateTime, Datelike};
 use regex::Regex;
 
 
@@ -56,7 +56,7 @@ fn get_offset_time(time_string: &str) -> Option<NaiveDateTime> {
     let mut potential_datetimes: Vec<NaiveDateTime> = Vec::new();
     let time_now = chrono::Local::now().naive_local();
 
-    let re = Regex::new(r"(\d+)\s(\S+)").unwrap();
+    let re = Regex::new(r"(\d+)\s?(\S+)").unwrap();
     for cap in re.captures_iter(time_string) {
         let offset = match cap[1].parse::<i32>() {
             Ok(offset) => offset,
@@ -182,7 +182,7 @@ fn get_exact_datetime(time_string: &str) -> Option<NaiveDateTime> {
                     Ok(time) => {
                         potential_times.push(time);
                     },
-                    Err(e) =>  {
+                    Err(_) =>  {
                         continue;
                     }
                 }
@@ -222,8 +222,8 @@ fn get_exact_datetime(time_string: &str) -> Option<NaiveDateTime> {
 fn str_to_timescale(string: &str) -> Option<chrono::Duration> {
     match string {
         "millisecond" | "milliseconds" => Some(chrono::Duration::milliseconds(1)),
-        "second" | "seconds" => Some(chrono::Duration::seconds(1)),
-        "minute" | "minutes" => Some(chrono::Duration::minutes(1)),
+        "second" | "seconds" | "sec" | "secs" => Some(chrono::Duration::seconds(1)),
+        "minute" | "minutes" | "min" | "mins" | "minaltatitatude" => Some(chrono::Duration::minutes(1)),
         "hour" | "hours" => Some(chrono::Duration::hours(1)),
         "day" | "days" => Some(chrono::Duration::days(1)),
         "week" | "weeks" => Some(chrono::Duration::weeks(1)),
