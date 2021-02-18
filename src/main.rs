@@ -5,9 +5,8 @@ use std::io::prelude::*;
 use std::time::{Duration, Instant};
 use std::error::Error;
 use rand::Rng;
-use image::imageops;
-use serde::{Deserialize, Serialize};
 use rand::seq::SliceRandom;
+use serde::{Deserialize, Serialize};
 use serenity:: {
     async_trait,
     model::{channel::Message, channel::ReactionType, gateway::Ready, gateway::Activity},
@@ -16,12 +15,14 @@ use serenity:: {
     framework::standard::{
         CommandResult, macros::{group, command},
     },
+    utils::{MessageBuilder},
 };
 
 #[cfg(test)]
 mod test;
 
 mod scheduler;
+mod bonker;
 
 struct MockTracker;
 
@@ -45,19 +46,7 @@ impl TypeMapKey for ReminderList{
     type Value = Vec<Reminder>;
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct ImageData {
-    name: String,
-    bonkee_x: u32,
-    bonkee_y: u32,
-    bonkee_width: u32,
-    bonkee_height: u32,
-    bonk_label_x: u32,
-    bonk_label_y: u32,
-    bonk_label_width: u32,
-    bonk_label_height: u32,
-    bonkee_top: bool
-}
+
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Reminder {
@@ -182,14 +171,14 @@ async fn bonk(ctx: &Context, msg: &Message) -> CommandResult {
             return Ok(())
         }
     };
-    let bonk_choice = match choose_bonk() {
+    let bonk_choice = match bonker::choose_bonk() {
         Ok(choice) => choice,
         Err(e) => {
             println!("{}", e);
             return Ok(())
         }
     };
-    let bonk_image = match overlay_bonk(avatar, &bonk_choice) {
+    let bonk_image = match bonker::overlay_bonk(avatar, &bonk_choice) {
         Ok(bonked) => bonked,
         Err(e) => {
             println!("{}", e);
@@ -223,7 +212,7 @@ async fn help(ctx: &Context, msg: &Message) -> CommandResult {
 async fn remind(ctx: &Context, msg: &Message) -> CommandResult {
     let parsed_time = scheduler::find_time(&msg.content);
     if let Some(parsed_time) = parsed_time {
-        if let Ok(message) = msg.reply(&ctx.http, format!("<@{}> I will remind you about this message on `{}` at `{}`\nother users can react with a 🕑 to also be notified", msg.author.id, parsed_time.date(), parsed_time.time())).await {
+        if let Ok(message) = msg.reply(&ctx.http, format!("I will remind you about this message on `{}` at `{}`\nother users can react with a 🕑 to also be notified", parsed_time.date(), parsed_time.time())).await {
             if let Err(why) = message.react(&ctx.http, '🕑').await {
                 println!("Error! could not react to message {:?}: {}", msg, why)
             }
@@ -328,7 +317,6 @@ impl EventHandler for Handler {
 
     async fn ready(&self, ctx: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
-        //ctx.set_activity(Activity::playing("doin your mom"));
         let ctx2 = ctx.clone();
         tokio::spawn(async move {
             let ctx = ctx2;
@@ -350,10 +338,14 @@ impl EventHandler for Handler {
                     for reminder in expired_reminders {
                         let mut other_users = reminder.verification_message.reaction_users(&ctx, '🕑', None, None).await.unwrap_or(Vec::new());
                         other_users.retain(|user| *user.id.as_u64() != me);
-                        let at_list = other_users.iter().map(|user| format!("{}", user.mention())).collect::<Vec<String>>().join(" ");
-                        let msg_content = format!("Reminding you of this message\n{}", at_list);
+
+                        let mut msg_content = MessageBuilder::new();
+                        msg_content.push_line("Reminding you of this message");
+                        for user in other_users {
+                            msg_content.mention(user);
+                        }
                         println!("{}", msg_content);
-                        if let Err(why) = reminder.message.reply_ping(&ctx, msg_content).await {
+                        if let Err(why) = reminder.message.reply_ping(&ctx, msg_content.await {
                             println!("Error! could not post reply message: {}", why);
                         }
                     }
@@ -473,41 +465,7 @@ fn mock_string(to_mock: &str) -> String {
     }).collect()
 }
 
-fn overlay_bonk(avatar: image::DynamicImage, meta: &ImageData) -> Result<image::DynamicImage, String> {
-    let bonk_image = match image::open(format!("./assets/{}", meta.name)) {
-        Ok(image) => image,
-        Err(e) => return Err(format!("could not open bonk image: {}", e)),
-    };
-    let resized_avatar = imageops::resize(&avatar, meta.bonkee_width, meta.bonkee_height, imageops::FilterType::Nearest);
-    let bonk_label = match image::open("./assets/bonklabel.png") {
-        Ok(image) => image,
-        Err(e) => return Err(format!("could not open bonk image: {}", e)),
-    };
-    let resized_label = imageops::resize(&bonk_label, meta.bonk_label_width, meta.bonk_label_height, imageops::FilterType::Nearest);
-    let mut bonk_image_copy = bonk_image.clone();
-    //to get actual coordinates, subtract half of width from x and half of height from y
-    imageops::overlay(&mut bonk_image_copy, &resized_avatar, meta.bonkee_x - meta.bonkee_width/2, meta.bonkee_y - meta.bonkee_height/2);
-    if !meta.bonkee_top {
-        imageops::overlay(&mut bonk_image_copy, &bonk_image, 0, 0);
-    }
-    imageops::overlay(&mut bonk_image_copy, &resized_label, meta.bonk_label_x - meta.bonk_label_width/2, meta.bonk_label_y - meta.bonk_label_height/2);
-    Ok(bonk_image_copy)
-}
 
-fn choose_bonk() -> Result<ImageData, String> {
-    let meta_data: Vec<ImageData> = match std::fs::read_to_string("./assets/bonk_locations.json") {
-        Ok(string) => match serde_json::from_str(&string) {
-            Ok(data) => data,
-            Err(e) => return Err(format!("could not parse JSON: {}", e)),
-        },
-        Err(e) => return Err(format!("could not read 'bonk_locations.json': {}", e)),
-    };
-    let meta = match meta_data.choose(&mut rand::thread_rng()) {
-        Some(item) => item,
-        None => return Err(format!("meta data has no elements to choose from")),
-    };
-    Ok(meta.clone())
-}
 
 //serialize the reminder list
 fn save_reminder_list(reminder_list: &Vec<Reminder>) -> Result<(), Box<dyn Error>> {
