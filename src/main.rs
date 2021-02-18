@@ -112,7 +112,7 @@ async fn main() {
 }
 
 #[group("mocker")]
-#[commands(mock, help, bonk, remind)]
+#[commands(mock, help, bonk, remind, flip)]
 struct Mocker;
 
 #[command]
@@ -135,6 +135,21 @@ async fn mock(ctx: &Context, msg: &Message) -> CommandResult {
             println!("now tracking user: {}", mentioned.name);
             track_mocker(ctx, id, 3).await;
         }
+    }
+    Ok(())
+}
+
+#[command]
+async fn flip(ctx: &Context, msg: &Message) -> CommandResult {
+    let myval ={
+        let mut rng = rand::thread_rng();
+        match rng.gen_bool(0.5) {
+            true => "Heads",
+            false => "Tails",
+        }
+    };
+    if let Err(why) = msg.channel_id.say(ctx, format!("{}", myval)).await {
+        println!("Could not send message: {}", why);
     }
     Ok(())
 }
@@ -339,14 +354,18 @@ impl EventHandler for Handler {
                         let mut other_users = reminder.verification_message.reaction_users(&ctx, '🕑', None, None).await.unwrap_or(Vec::new());
                         other_users.retain(|user| *user.id.as_u64() != me);
 
-                        let mut msg_content = MessageBuilder::new();
-                        msg_content.push_line("Reminding you of this message");
-                        for user in other_users {
-                            msg_content.mention(&user);
-                        }
-                        println!("{}", msg_content);
-                        if let Err(why) = reminder.message.reply_ping(&ctx, msg_content).await {
+                        if let Err(why) = reminder.message.reply_ping(&ctx, "Reminding you of this message").await {
                             println!("Error! could not post reply message: {}", why);
+                        }
+                        if other_users.len() > 0 {
+                            let mut msg_content = MessageBuilder::new();
+                            for user in other_users {
+                                msg_content.mention(&user);
+                            }
+                            println!("{}", msg_content);
+                            if let Err(why) = reminder.message.channel_id.say(&ctx, msg_content).await {
+                                println!("Error! could not post reply message: {}", why);
+                            }
                         }
                     }
                     reminder_list.retain(|reminder| reminder.date_time > now);
