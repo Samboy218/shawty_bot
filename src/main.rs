@@ -342,7 +342,7 @@ impl EventHandler for Handler {
                         let mut msg_content = MessageBuilder::new();
                         msg_content.push_line("Reminding you of this message");
                         for user in other_users {
-                            msg_content.mention(user);
+                            msg_content.mention(&user);
                         }
                         println!("{}", msg_content);
                         if let Err(why) = reminder.message.reply_ping(&ctx, msg_content).await {
