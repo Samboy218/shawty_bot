@@ -345,7 +345,7 @@ impl EventHandler for Handler {
                             msg_content.mention(user);
                         }
                         println!("{}", msg_content);
-                        if let Err(why) = reminder.message.reply_ping(&ctx, msg_content.await {
+                        if let Err(why) = reminder.message.reply_ping(&ctx, msg_content).await {
                             println!("Error! could not post reply message: {}", why);
                         }
                     }
