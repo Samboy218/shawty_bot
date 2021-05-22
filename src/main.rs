@@ -339,7 +339,7 @@ impl EventHandler for Handler {
         };
         if let Some(channel) = msg.channel(&ctx).await {
             if channel.is_nsfw() && msg.author.id != me {
-                let test_id = id % 1_000_000;
+                let test_id = *msg.author.id.as_u64() % 1_000_000;
                 let mut banned_tags: Vec<u64> = Vec::new();
                 //no loli please
                 banned_tags.push(19440);
@@ -368,8 +368,8 @@ impl EventHandler for Handler {
                                             }
                                             else {
                                                 let title = match &map["title"]["english"] {
-                                                    Value::String(title) => format!("{}\nhttps://nhentai.net/g/{}", title.as_str(), id),
-                                                    _ => format!("https://nhentai.net/g/{}", id),
+                                                    Value::String(title) => format!("{}\nhttps://nhentai.net/g/{}", title.as_str(), test_id),
+                                                    _ => format!("https://nhentai.net/g/{}", test_id),
                                                 };
                                                 if let Err(why) = msg.channel_id.say(&ctx.http, title).await {
                                                     println!("Error sending message: {:?}", why);
