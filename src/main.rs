@@ -339,7 +339,7 @@ impl EventHandler for Handler {
         };
         if let Some(channel) = msg.channel(&ctx).await {
             if channel.is_nsfw() && msg.author.id != me {
-                let test_id = *msg.author.id.as_u64() % 1_000_000;
+                let test_id = *msg.id.as_u64() % 1_000_000;
                 let mut banned_tags: Vec<u64> = Vec::new();
                 //no loli please
                 banned_tags.push(19440);
@@ -364,7 +364,7 @@ impl EventHandler for Handler {
                                                 _ => false,
                                             };
                                             if banned {
-                                                println!("banned tag detected");
+                                                println!("{} banned tag detected", test_id);
                                             }
                                             else {
                                                 let title = match &map["title"]["english"] {
@@ -382,6 +382,9 @@ impl EventHandler for Handler {
                                 },
                                 Err(why) => println!("could not get text of response: {}", why),
                             }
+                        }
+                        else {
+                            println!("{} not found", test_id);
                         }
                     },
                     Err(why) => println!("could not send request to website: {}", why),
