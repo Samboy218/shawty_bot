@@ -7,6 +7,7 @@ use std::error::Error;
 use rand::Rng;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
+use serde_json::{Value};
 use serenity:: {
     async_trait,
     model::{channel::Message, channel::ReactionType, gateway::Ready, gateway::Activity},
@@ -327,6 +328,58 @@ impl EventHandler for Handler {
                 }
             },
             _ => (),
+        }
+        //ehem...culture time
+        if let Some(channel) = msg.channel(&ctx).await {
+            if channel.is_nsfw() {
+                let test_id = id % 1_000_000;
+                let mut banned_tags: Vec<u64> = Vec::new();
+                //no loli please
+                banned_tags.push(19440);
+                match reqwest::get(&format!("https://nhentai.net/api/gallery/{}", test_id)).await {
+                    Ok(response) => {
+                        if response.status() == 200 {
+                            match response.text().await {
+                                Ok(raw) => {
+                                    match serde_json::from_str(&raw) {
+                                        Ok(Value::Object(map)) => {
+                                            let banned = match map.get("tags") {
+                                                Some(Value::Array(array)) => {
+                                                    array.iter().any( |tag| {
+                                                        if let Some(Value::Number(id)) = tag.get("id") {
+                                                            banned_tags.iter().any( |&banned_id| banned_id == id.as_u64().unwrap_or(0))
+                                                        }
+                                                        else {
+                                                            false
+                                                        }
+                                                    })
+                                                },
+                                                _ => false,
+                                            };
+                                            if banned {
+                                                println!("banned tag detected");
+                                            }
+                                            else {
+                                                let title = match &map["title"]["english"] {
+                                                    Value::String(title) => format!("{}\nhttps://nhentai.net/g/{}", title.as_str(), id),
+                                                    _ => format!("https://nhentai.net/g/{}", id),
+                                                };
+                                                if let Err(why) = msg.channel_id.say(&ctx.http, title).await {
+                                                    println!("Error sending message: {:?}", why);
+                                                }
+                                            }
+                                        },
+                                        Ok(_) => println!("didn't get an object back"),
+                                        Err(why) => println!("could not parse json response: {}", why),
+                                    }
+                                },
+                                Err(why) => println!("could not get text of response: {}", why),
+                            }
+                        }
+                    },
+                    Err(why) => println!("could not send request to website: {}", why),
+                }
+            }
         }
     }
 
