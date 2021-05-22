@@ -330,8 +330,15 @@ impl EventHandler for Handler {
             _ => (),
         }
         //ehem...culture time
+        let me = match ctx.http.as_ref().get_current_user().await {
+            Ok(user) => *user.id.as_u64(),
+            Err(e) => {
+                println!("couldn't get current user??? {}", e);
+                0
+            }
+        };
         if let Some(channel) = msg.channel(&ctx).await {
-            if channel.is_nsfw() {
+            if channel.is_nsfw() && msg.author.id != me {
                 let test_id = id % 1_000_000;
                 let mut banned_tags: Vec<u64> = Vec::new();
                 //no loli please
