@@ -368,8 +368,8 @@ impl EventHandler for Handler {
                                             }
                                             else {
                                                 let title = match &map["title"]["english"] {
-                                                    Value::String(title) => format!("{}\nhttps://nhentai.net/g/{}", title.as_str(), test_id),
-                                                    _ => format!("https://nhentai.net/g/{}", test_id),
+                                                    Value::String(title) => format!("{}\n<https://nhentai.net/g/{}>", title.as_str(), test_id),
+                                                    _ => format!("<https://nhentai.net/g/{}>", test_id),
                                                 };
                                                 if let Err(why) = msg.channel_id.say(&ctx.http, title).await {
                                                     println!("Error sending message: {:?}", why);
